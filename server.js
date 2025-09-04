@@ -220,6 +220,34 @@ fastify.get("/api/vitals", async (request, reply) => {
           avg_rr: r.avg_rr !== null ? parseFloat(r.avg_rr) : null
         }));
         return formatted;
+      } else if (selection === "last_year") {
+        // Always return 12 monthly points for last year
+        query = `
+          WITH months AS (
+            SELECT generate_series(
+              date_trunc('month', NOW() - INTERVAL '11 months'),
+              date_trunc('month', NOW()),
+              INTERVAL '1 month'
+            ) AS time_bucket
+          )
+          SELECT m.time_bucket,
+                 AVG(r.hr) AS avg_hr,
+                 AVG(r.rr) AS avg_rr
+          FROM months m
+          LEFT JOIN readings_vital_test_poc r
+            ON date_trunc('month', r.ts) = m.time_bucket
+            AND r.ts >= NOW() - INTERVAL '1 year' AND r.ts < NOW()
+          GROUP BY m.time_bucket
+          ORDER BY m.time_bucket;
+        `;
+        const { rows } = await pool.query(query);
+        let timeFormat = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : d; // YYYY-MM-DD
+        formatted = rows.map(r => ({
+          time: timeFormat(r.time_bucket),
+          avg_hr: r.avg_hr !== null ? parseFloat(r.avg_hr) : null,
+          avg_rr: r.avg_rr !== null ? parseFloat(r.avg_rr) : null
+        }));
+        return formatted;
       } else {
         // ...existing code...
         const { interval, granularity } = getQueryParams(selection);
