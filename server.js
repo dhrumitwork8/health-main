@@ -265,7 +265,7 @@ fastify.get("/api/vitals", async (request, reply) => {
     FROM minutes m
     LEFT JOIN readings_vital_test_poc r
       ON date_trunc('minute', r.ts) = m.time_bucket
-AND r.ts >= NOW() - INTERVAL '1 hour' AND r.ts < NOW()
+AND r.ts >= '2025-09-04 10:00:00' AND r.ts < '2025-09-04 11:00:00'
     GROUP BY m.time_bucket
     ORDER BY m.time_bucket;
   `;
