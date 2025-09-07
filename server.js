@@ -252,23 +252,23 @@ fastify.get("/api/vitals", async (request, reply) => {
       else if (selection === "last_hour") {
   // Per-minute data for the last 60 minutes
   query = `
-    WITH minutes AS (
-      SELECT generate_series(
-        date_trunc('minute', NOW() - INTERVAL '59 minutes'),
-        date_trunc('minute', NOW()),
-        INTERVAL '1 minute'
-      ) AS time_bucket
-    )
-    SELECT m.time_bucket,
-           AVG(r.hr) AS avg_hr,
-           AVG(r.rr) AS avg_rr
-    FROM minutes m
-    LEFT JOIN readings_vital_test_poc r
-      ON date_trunc('minute', r.ts) = m.time_bucket
-AND r.ts >= '2025-09-04 10:00:00' AND r.ts < '2025-09-04 11:00:00'
-    GROUP BY m.time_bucket
-    ORDER BY m.time_bucket;
-  `;
+      WITH minutes AS (
+        SELECT generate_series(
+          '2025-09-04 10:00:00'::timestamp,
+          '2025-09-04 10:59:00'::timestamp,
+          INTERVAL '1 minute'
+        ) AS time_bucket
+      )
+      SELECT m.time_bucket,
+             AVG(r.hr) AS avg_hr,
+             AVG(r.rr) AS avg_rr
+      FROM minutes m
+      LEFT JOIN readings_vital_test_poc r
+        ON date_trunc('minute', r.ts) = m.time_bucket
+        AND r.ts >= '2025-09-04 10:00:00' AND r.ts < '2025-09-04 11:00:00'
+      GROUP BY m.time_bucket
+      ORDER BY m.time_bucket;
+    `;
   const { rows } = await pool.query(query);
   let timeFormat = (d) => d instanceof Date ? d.toISOString().slice(0, 19) : d;
   formatted = rows.map(r => ({
