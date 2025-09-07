@@ -248,7 +248,37 @@ fastify.get("/api/vitals", async (request, reply) => {
           avg_rr: r.avg_rr !== null ? parseFloat(r.avg_rr) : null
         }));
         return formatted;
-      } else {
+      }
+      else if (selection === "last_hour") {
+  // Per-minute data for the last 60 minutes
+  query = `
+    WITH minutes AS (
+      SELECT generate_series(
+        date_trunc('minute', NOW() - INTERVAL '59 minutes'),
+        date_trunc('minute', NOW()),
+        INTERVAL '1 minute'
+      ) AS time_bucket
+    )
+    SELECT m.time_bucket,
+           AVG(r.hr) AS avg_hr,
+           AVG(r.rr) AS avg_rr
+    FROM minutes m
+    LEFT JOIN readings_vital_test_poc r
+      ON date_trunc('minute', r.ts) = m.time_bucket
+AND r.ts >= NOW() - INTERVAL '1 hour' AND r.ts < NOW()
+    GROUP BY m.time_bucket
+    ORDER BY m.time_bucket;
+  `;
+  const { rows } = await pool.query(query);
+  let timeFormat = (d) => d instanceof Date ? d.toISOString().slice(0, 19) : d;
+  formatted = rows.map(r => ({
+    time: timeFormat(r.time_bucket),
+    avg_hr: r.avg_hr !== null ? parseFloat(r.avg_hr) : null,
+    avg_rr: r.avg_rr !== null ? parseFloat(r.avg_rr) : null
+  }));
+  return formatted;
+}
+      else {
         // ...existing code...
         const { interval, granularity } = getQueryParams(selection);
         const allowedGranularities = ["second", "minute", "hour", "day"];
