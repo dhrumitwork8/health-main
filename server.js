@@ -10,6 +10,14 @@ const fastify = Fastify({
     logger: true,
 });
 
+// ✅ Enable CORS (Fix for CORS error)
+await fastify.register(cors, {
+  origin: "*", // or restrict it: ["https://your-frontend.com"]
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
+
+
 // ## PostgreSQL Connection
 const pool = new Pool({
     user: process.env.DB_USER,
