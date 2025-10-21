@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import pg from "pg";
 import dotenv from "dotenv";
 
@@ -8,6 +9,13 @@ const { Pool } = pg;
 
 const fastify = Fastify({
   logger: true,
+});
+
+// ✅ Enable CORS properly
+await fastify.register(cors, {
+  origin: "*", // or specify your frontend: "https://your-frontend.com"
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 });
 
 // ## PostgreSQL Connection
