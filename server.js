@@ -1,5 +1,4 @@
 import Fastify from "fastify";
-import cors from "@fastify/cors"; // ✅ ADD THIS LINE
 import pg from "pg";
 import dotenv from "dotenv";
 
@@ -9,13 +8,6 @@ const { Pool } = pg;
 
 const fastify = Fastify({
   logger: true,
-});
-
-// ✅ Enable CORS
-await fastify.register(cors, {
-  origin: "*", // or ["https://your-frontend.com"]
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
 });
 
 // ## PostgreSQL Connection
@@ -32,23 +24,54 @@ const pool = new Pool({
 
 // ## OPTIMIZED Configuration for different time ranges
 const rangeSettings = {
-  last_minute: { interval: "1 hour", bucketSeconds: 60 },
-  last_day: { interval: "24 hours", bucketSeconds: 300 },
-  last_month: { interval: "30 days", bucketSeconds: 7200 },
-  last_year: { interval: "1 year", bucketSeconds: 43200 },
+  last_minute: { interval: '1 minute', bucketSeconds: 1 },      // 1 second buckets for real-time
+  last_hour: { interval: '1 hour', bucketSeconds: 60 },         // 1 minute buckets
+  last_day: { interval: '1 day', bucketSeconds: 300 },          // 5 minute buckets (288 points)
+  last_week: { interval: '7 days', bucketSeconds: 1800 },       // 30 minute buckets (336 points)
+  last_month: { interval: '30 days', bucketSeconds: 7200 },     // 2 hour buckets (360 points)
+  last_year: { interval: '1 year', bucketSeconds: 86400 },      // 1 day buckets (365 points)
 };
 
-// ## API Endpoint: GET /api/vitals?range=[last_minute|last_day|last_month|last_year]
+// ## API Endpoint: GET /api/vitals/live - Get the most recent raw data
+fastify.get("/api/vitals/live", async (request, reply) => {
+  try {
+    const { limit = 100 } = request.query; // Default to last 100 records
+
+    const query = `
+            SELECT 
+                ts as timestamp,
+                hr as heartRate,
+                rr as respirationRate
+            FROM readings_vital
+            WHERE ts IS NOT NULL
+            ORDER BY ts DESC
+            LIMIT $1
+        `;
+
+    const { rows } = await pool.query(query, [limit]);
+
+    const formattedResponse = rows.map(row => ({
+      timestamp: row.timestamp.toISOString(),
+      heartRate: row.heartrate !== null && !isNaN(row.heartrate) ? parseFloat(parseFloat(row.heartrate).toFixed(2)) : null,
+      respirationRate: row.respirationrate !== null && !isNaN(row.respirationrate) ? parseFloat(parseFloat(row.respirationrate).toFixed(2)) : null,
+    })).reverse(); // Reverse to show oldest first
+
+    return formattedResponse;
+
+  } catch (err) {
+    fastify.log.error(err);
+    reply.code(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// ## API Endpoint: GET /api/vitals?range=[last_minute|last_hour|last_day|last_week|last_month|last_year]
 fastify.get("/api/vitals", async (request, reply) => {
   try {
-    const { range = "last_day" } = request.query;
+    const { range = 'last_day' } = request.query;
     const settings = rangeSettings[range];
 
     if (!settings) {
-      return reply.code(400).send({
-        error:
-          "Invalid range. Use one of: last_minute, last_day, last_month, last_year.",
-      });
+      return reply.code(400).send({ error: "Invalid range. Use one of: last_minute, last_hour, last_day, last_week, last_month, last_year." });
     }
 
     const { interval, bucketSeconds } = settings;
@@ -64,12 +87,15 @@ fastify.get("/api/vitals", async (request, reply) => {
           readings_vital
         WHERE
           ts >= NOW() - $1::interval
+          AND hr IS NOT NULL
+          AND rr IS NOT NULL
       ),
       bucket_aggregates AS (
         SELECT
           time_bucket,
           array_agg(hr ORDER BY hr) AS hr_values,
-          array_agg(rr ORDER BY rr) AS rr_values
+          array_agg(rr ORDER BY rr) AS rr_values,
+          COUNT(*) as sample_count
         FROM
           time_buckets
         GROUP BY
@@ -77,8 +103,25 @@ fastify.get("/api/vitals", async (request, reply) => {
       )
       SELECT
         time_bucket,
-        (SELECT AVG(val) FROM unnest(hr_values[ceil(array_length(hr_values, 1) * ${trimPercent}):(array_length(hr_values, 1) - floor(array_length(hr_values, 1) * ${trimPercent}))]) AS val) AS trimmed_hr,
-        (SELECT AVG(val) FROM unnest(rr_values[ceil(array_length(rr_values, 1) * ${trimPercent}):(array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))]) AS val) AS trimmed_rr
+        sample_count,
+        CASE 
+          WHEN sample_count < 3 THEN 
+            (SELECT AVG(unnest) FROM unnest(hr_values))
+          ELSE 
+            (SELECT AVG(val) FROM unnest(hr_values[
+              GREATEST(1, ceil(array_length(hr_values, 1) * ${trimPercent})):
+              LEAST(array_length(hr_values, 1), array_length(hr_values, 1) - floor(array_length(hr_values, 1) * ${trimPercent}))
+            ]) AS val)
+        END AS trimmed_hr,
+        CASE 
+          WHEN sample_count < 3 THEN 
+            (SELECT AVG(unnest) FROM unnest(rr_values))
+          ELSE 
+            (SELECT AVG(val) FROM unnest(rr_values[
+              GREATEST(1, ceil(array_length(rr_values, 1) * ${trimPercent})):
+              LEAST(array_length(rr_values, 1), array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))
+            ]) AS val)
+        END AS trimmed_rr
       FROM
         bucket_aggregates
       ORDER BY
@@ -87,19 +130,20 @@ fastify.get("/api/vitals", async (request, reply) => {
 
     const { rows } = await pool.query(query, [interval, bucketSeconds]);
 
-    const formattedResponse = rows.map((row) => ({
+    // Format response with proper handling of numeric values
+    const formattedResponse = rows.map(row => ({
       timestamp: row.time_bucket.toISOString(),
-      heartRate:
-        row.trimmed_hr !== null && !isNaN(row.trimmed_hr)
-          ? parseFloat(parseFloat(row.trimmed_hr).toFixed(2))
-          : null,
-      respirationRate:
-        row.trimmed_rr !== null && !isNaN(row.trimmed_rr)
-          ? parseFloat(parseFloat(row.trimmed_rr).toFixed(2))
-          : null,
+      heartRate: (row.trimmed_hr !== null && row.trimmed_hr !== undefined && typeof row.trimmed_hr === 'number')
+        ? parseFloat(row.trimmed_hr.toFixed(2))
+        : null,
+      respirationRate: (row.trimmed_rr !== null && row.trimmed_rr !== undefined && typeof row.trimmed_rr === 'number')
+        ? parseFloat(row.trimmed_rr.toFixed(2))
+        : null,
+      sampleCount: row.sample_count || 0
     }));
 
     return formattedResponse;
+
   } catch (err) {
     fastify.log.error(err);
     reply.code(500).send({ error: "Internal Server Error" });
