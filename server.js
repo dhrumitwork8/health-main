@@ -48,8 +48,10 @@ fastify.get("/api/vitals/live", async (request, reply) => {
     const query = `
             SELECT 
                 ts as timestamp,
-                hr as heartRate,
-                rr as respirationRate
+                hr as heartrate,
+                rr as respirationrate,
+                sig_strength as signalstrength,
+                bed_status as bedstatus
             FROM readings_vital
             WHERE ts IS NOT NULL
             ORDER BY ts DESC
@@ -62,6 +64,13 @@ fastify.get("/api/vitals/live", async (request, reply) => {
       timestamp: row.timestamp.toISOString(),
       heartRate: row.heartrate !== null && !isNaN(row.heartrate) ? parseFloat(parseFloat(row.heartrate).toFixed(2)) : null,
       respirationRate: row.respirationrate !== null && !isNaN(row.respirationrate) ? parseFloat(parseFloat(row.respirationrate).toFixed(2)) : null,
+      signalStrength: row.signalstrength !== null && !isNaN(row.signalstrength) ? parseInt(row.signalstrength) : 0,
+      signalQuality: row.signalstrength !== null && !isNaN(row.signalstrength) ?
+        (row.signalstrength < 1000 ? 'poor' : row.signalstrength < 2000 ? 'fair' : 'good') : 'poor',
+      bedStatus: row.bedstatus !== null && !isNaN(row.bedstatus) ? parseInt(row.bedstatus) : null,
+      bedStatusText: row.bedstatus !== null && !isNaN(row.bedstatus) ?
+        (row.bedstatus === 0 ? 'out of bed' : row.bedstatus === 1 ? 'in bed' : 'movement') : null,
+      hrReliable: row.signalstrength !== null && !isNaN(row.signalstrength) ? row.signalstrength >= 1000 : false
     })).reverse(); // Reverse to show oldest first
 
     return formattedResponse;
@@ -90,7 +99,9 @@ fastify.get("/api/vitals", async (request, reply) => {
         SELECT
           to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
           hr,
-          rr
+          rr,
+          sig_strength,
+          bed_status
         FROM
           readings_vital
         WHERE
@@ -103,6 +114,8 @@ fastify.get("/api/vitals", async (request, reply) => {
           time_bucket,
           array_agg(hr ORDER BY hr) AS hr_values,
           array_agg(rr ORDER BY rr) AS rr_values,
+          AVG(sig_strength) AS avg_signal_strength,
+          MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
           COUNT(*) as sample_count
         FROM
           time_buckets
@@ -129,7 +142,9 @@ fastify.get("/api/vitals", async (request, reply) => {
               GREATEST(1, ceil(array_length(rr_values, 1) * ${trimPercent})):
               LEAST(array_length(rr_values, 1), array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))
             ]) AS val)
-        END AS trimmed_rr
+        END AS trimmed_rr,
+        avg_signal_strength,
+        most_common_bed_status
       FROM
         bucket_aggregates
       ORDER BY
@@ -147,6 +162,21 @@ fastify.get("/api/vitals", async (request, reply) => {
       respirationRate: (row.trimmed_rr !== null && row.trimmed_rr !== undefined && typeof row.trimmed_rr === 'number')
         ? parseFloat(row.trimmed_rr.toFixed(2))
         : null,
+      signalStrength: (row.avg_signal_strength !== null && row.avg_signal_strength !== undefined)
+        ? Math.round(row.avg_signal_strength)
+        : 0,
+      signalQuality: (row.avg_signal_strength !== null && row.avg_signal_strength !== undefined)
+        ? (row.avg_signal_strength < 1000 ? 'poor' : row.avg_signal_strength < 2000 ? 'fair' : 'good')
+        : 'poor',
+      bedStatus: (row.most_common_bed_status !== null && row.most_common_bed_status !== undefined)
+        ? parseInt(row.most_common_bed_status)
+        : null,
+      bedStatusText: (row.most_common_bed_status !== null && row.most_common_bed_status !== undefined)
+        ? (row.most_common_bed_status === 0 ? 'out of bed' : row.most_common_bed_status === 1 ? 'in bed' : 'movement')
+        : null,
+      hrReliable: (row.avg_signal_strength !== null && row.avg_signal_strength !== undefined)
+        ? row.avg_signal_strength >= 1000
+        : false,
       sampleCount: row.sample_count || 0
     }));
 
