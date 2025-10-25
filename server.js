@@ -50,7 +50,7 @@ fastify.get("/api/vitals/live", async (request, reply) => {
                 ts as timestamp,
                 hr as heartrate,
                 rr as respirationrate,
-                sig_strength as signalstrength,
+                fft as signalstrength,
                 bed_status as bedstatus
             FROM readings_vital
             WHERE ts IS NOT NULL
@@ -100,7 +100,7 @@ fastify.get("/api/vitals", async (request, reply) => {
           to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
           hr,
           rr,
-          sig_strength,
+          fft,
           bed_status
         FROM
           readings_vital
@@ -114,7 +114,7 @@ fastify.get("/api/vitals", async (request, reply) => {
           time_bucket,
           array_agg(hr ORDER BY hr) AS hr_values,
           array_agg(rr ORDER BY rr) AS rr_values,
-          AVG(sig_strength) AS avg_signal_strength,
+          AVG(fft) AS avg_signal_strength,
           MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
           COUNT(*) as sample_count
         FROM
