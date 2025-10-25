@@ -39,7 +39,6 @@ const rangeSettings = {
   last_month: { interval: '30 days', bucketSeconds: 7200 },     // 2 hour buckets (360 points)
   last_year: { interval: '1 year', bucketSeconds: 86400 },      // 1 day buckets (365 points)
 };
-
 // ## API Endpoint: GET /api/vitals/live - Get the most recent raw data
 fastify.get("/api/vitals/live", async (request, reply) => {
   try {
@@ -114,13 +113,13 @@ fastify.get("/api/vitals", async (request, reply) => {
           time_bucket,
           array_agg(hr ORDER BY hr) AS hr_values,
           array_agg(rr ORDER BY rr) AS rr_values,
-          fft,
+          array_agg(fft) AS fft_values,
           MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
           COUNT(*) as sample_count
         FROM
           time_buckets
         GROUP BY
-          time_bucket, fft
+          time_bucket
       )
       SELECT
         time_bucket,
@@ -143,7 +142,7 @@ fastify.get("/api/vitals", async (request, reply) => {
               LEAST(array_length(rr_values, 1), array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))
             ]) AS val)
         END AS trimmed_rr,
-        fft AS raw_signal_strength,
+        (fft_values[1]) AS fft_value,
         most_common_bed_status
       FROM
         bucket_aggregates
@@ -162,11 +161,11 @@ fastify.get("/api/vitals", async (request, reply) => {
       respirationRate: (row.trimmed_rr !== null && row.trimmed_rr !== undefined && typeof row.trimmed_rr === 'number')
         ? parseFloat(row.trimmed_rr.toFixed(2))
         : null,
-      signalStrength: (row.raw_signal_strength !== null && row.raw_signal_strength !== undefined)
-        ? parseInt(row.raw_signal_strength)
+      signalStrength: (row.fft_value !== null && row.fft_value !== undefined)
+        ? Math.round(row.fft_value)
         : 0,
-      signalQuality: (row.raw_signal_strength !== null && row.raw_signal_strength !== undefined)
-        ? (row.raw_signal_strength < 1000 ? 'poor' : row.raw_signal_strength < 2000 ? 'fair' : 'good')
+      signalQuality: (row.fft_value !== null && row.fft_value !== undefined)
+        ? (row.fft_value < 1000 ? 'poor' : row.fft_value < 2000 ? 'fair' : 'good')
         : 'poor',
       bedStatus: (row.most_common_bed_status !== null && row.most_common_bed_status !== undefined)
         ? parseInt(row.most_common_bed_status)
@@ -174,8 +173,8 @@ fastify.get("/api/vitals", async (request, reply) => {
       bedStatusText: (row.most_common_bed_status !== null && row.most_common_bed_status !== undefined)
         ? (row.most_common_bed_status === 0 ? 'out of bed' : row.most_common_bed_status === 1 ? 'in bed' : 'movement')
         : null,
-      hrReliable: (row.raw_signal_strength !== null && row.raw_signal_strength !== undefined)
-        ? row.raw_signal_strength >= 1000
+      hrReliable: (row.fft_value !== null && row.fft_value !== undefined)
+        ? row.fft_value >= 1000
         : false,
       sampleCount: row.sample_count || 0
     }));
