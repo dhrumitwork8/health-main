@@ -301,6 +301,70 @@ export const createVitalsController = (fastify) => ({
     }
   },
 
+  getHrvSvByRange: async (request, reply) => {
+    try {
+      const { range = "last_day" } = request.query;
+      const settings = rangeSettings[range];
+
+      if (!settings) {
+        return reply
+          .code(400)
+          .send({
+            error:
+              "Invalid range. Use one of: last_minute, last_hour, last_day, last_week, last_month, last_year.",
+          });
+      }
+
+      const { interval, bucketSeconds } = settings;
+      const [hrvResult, svResult] = await Promise.all([
+        getHrvByRange(interval, bucketSeconds, trimPercent),
+        getSvByRange(interval, bucketSeconds, trimPercent),
+      ]);
+
+      const hrv = hrvResult.rows.map((row) => ({
+        timestamp: row.time_bucket.toISOString(),
+        hrv:
+          row.trimmed_hrv !== null && row.trimmed_hrv !== undefined && typeof row.trimmed_hrv === "number"
+            ? parseFloat(row.trimmed_hrv.toFixed(2))
+            : null,
+      }));
+
+      const sv = svResult.rows.map((row) => ({
+        timestamp: row.time_bucket.toISOString(),
+        sv:
+          row.trimmed_sv !== null && row.trimmed_sv !== undefined && typeof row.trimmed_sv === "number"
+            ? parseFloat(row.trimmed_sv.toFixed(2))
+            : null,
+      }));
+
+      const mergedMap = new Map();
+
+      hrv.forEach((entry) => {
+        mergedMap.set(entry.timestamp, { timestamp: entry.timestamp, hrv: entry.hrv, sv: null });
+      });
+
+      sv.forEach((entry) => {
+        if (mergedMap.has(entry.timestamp)) {
+          mergedMap.get(entry.timestamp).sv = entry.sv;
+        } else {
+          mergedMap.set(entry.timestamp, { timestamp: entry.timestamp, hrv: null, sv: entry.sv });
+        }
+      });
+
+      const combined = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      return combined;
+    } catch (err) {
+      fastify.log.error("HRV/SV API Error:", err);
+      reply.code(500).send({
+        error: "Internal Server Error",
+        details: err.message,
+      });
+    }
+  },
+
   getStrByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;

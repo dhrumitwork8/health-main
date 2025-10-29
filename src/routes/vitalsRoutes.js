@@ -10,6 +10,7 @@ export const registerVitalsRoutes = (fastify) => {
   fastify.get("/api/vitals", controller.getVitalsByRange);
   fastify.get("/api/hrv", controller.getHrvByRange);
   fastify.get("/api/sv", controller.getSvByRange);
+  fastify.get("/api/hrv-sv", controller.getHrvSvByRange);
   fastify.get("/api/str", controller.getStrByRange);
   fastify.get("/api/rs", controller.getRsByRange);
 
