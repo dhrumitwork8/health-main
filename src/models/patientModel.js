@@ -1,6 +1,6 @@
 import { pool } from "../db/pool.js";
 
-// Get current vitals (last 20 seconds for HR, last 60 seconds for RR)
+// Get current vitals (last 20 seconds for HR, last 80 seconds for RR)
 export const getCurrentVitals = (sensorId) => {
   const query = `
     SELECT 
@@ -10,14 +10,14 @@ export const getCurrentVitals = (sensorId) => {
       ts
     FROM readings_vital
     WHERE sensor_id = $1 
-      AND ts >= NOW() - INTERVAL '60 seconds'
+      AND ts >= NOW() - INTERVAL '80 seconds'
     ORDER BY ts DESC
   `;
 
   return pool.query(query, [sensorId]);
 };
 
-// Get last night data (10 PM - 6 AM)
+// Get last night data (9 PM - 7 AM)
 export const getLastNightData = (sensorId) => {
   const query = `
     SELECT 
@@ -28,8 +28,8 @@ export const getLastNightData = (sensorId) => {
     FROM readings_vital
     WHERE sensor_id = $1 
       AND (
-        (DATE(ts) = CURRENT_DATE AND EXTRACT(HOUR FROM ts) >= 22) OR
-        (DATE(ts) = CURRENT_DATE + INTERVAL '1 day' AND EXTRACT(HOUR FROM ts) < 6)
+        (DATE(ts) = CURRENT_DATE - INTERVAL '1 day' AND EXTRACT(HOUR FROM ts) >= 21) OR
+        (DATE(ts) = CURRENT_DATE AND EXTRACT(HOUR FROM ts) < 7)
       )
     ORDER BY ts DESC
   `;

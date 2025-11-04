@@ -87,14 +87,14 @@ export const createPatientController = (fastify) => ({
                         new Date() - new Date(r.ts) <= 20000
                     );
 
-                    // Calculate current RR (last 60 seconds) 
-                    const last60SecReadings = currentReadings.filter(r =>
-                        new Date() - new Date(r.ts) <= 60000
+                    // Calculate current RR (last 80 seconds) 
+                    const last80SecReadings = currentReadings.filter(r =>
+                        new Date() - new Date(r.ts) <= 80000
                     );
 
                     // Get latest bed status
                     const latestReading = currentReadings[0];
-                    const currentBedStatus = latestReading ? latestReading.bed_status : null;
+                    const currentBedStatus = latestReading ? parseInt(latestReading.bed_status) : null;
 
                     // Calculate current HR
                     let currentHR = 0;
@@ -112,7 +112,7 @@ export const createPatientController = (fastify) => ({
                     if (currentBedStatus === 0) {
                         currentRR = 0; // Out of bed = 0
                     } else {
-                        const rrValues = last60SecReadings
+                        const rrValues = last80SecReadings
                             .filter(r => r.rr !== null && r.rr > 0 && r.bed_status !== 0)
                             .map(r => parseFloat(r.rr));
                         currentRR = rrValues.length > 0 ? calculateAverage(rrValues) : 0;
@@ -128,8 +128,8 @@ export const createPatientController = (fastify) => ({
                         .filter(r => r.rr !== null && r.rr > 0)
                         .map(r => parseFloat(r.rr));
 
-                    const lastNightHR = calculateMedian(nightHrValues) || 0;
-                    const lastNightRR = calculateMedian(nightRrValues) || 0;
+                    const lastNightHR = calculateAverage(nightHrValues) || 0;
+                    const lastNightRR = calculateAverage(nightRrValues) || 0;
 
                     // Calculate sleep metrics
                     const outOfBedMinutes = countMinutesWithStatus(lastNightReadings, 0);
@@ -140,6 +140,7 @@ export const createPatientController = (fastify) => ({
                     if (currentBedStatus === 0) bedStatusText = "Out of bed";
                     else if (currentBedStatus === 1) bedStatusText = "In bed";
                     else if (currentBedStatus === 2) bedStatusText = "Movement";
+                    else if (currentBedStatus === null) bedStatusText = "No data";
 
                     return {
                         id: index + 1,
@@ -205,12 +206,12 @@ export const createPatientController = (fastify) => ({
                 new Date() - new Date(r.ts) <= 20000
             );
 
-            const last60SecReadings = currentReadings.filter(r =>
-                new Date() - new Date(r.ts) <= 60000
+            const last80SecReadings = currentReadings.filter(r =>
+                new Date() - new Date(r.ts) <= 80000
             );
 
             const latestReading = currentReadings[0];
-            const currentBedStatus = latestReading ? latestReading.bed_status : null;
+            const currentBedStatus = latestReading ? parseInt(latestReading.bed_status) : null;
 
             let currentHR = 0;
             if (currentBedStatus === 0) {
@@ -226,7 +227,7 @@ export const createPatientController = (fastify) => ({
             if (currentBedStatus === 0) {
                 currentRR = 0;
             } else {
-                const rrValues = last60SecReadings
+                const rrValues = last80SecReadings
                     .filter(r => r.rr !== null && r.rr > 0 && r.bed_status !== 0)
                     .map(r => parseFloat(r.rr));
                 currentRR = rrValues.length > 0 ? calculateAverage(rrValues) : 0;
@@ -242,8 +243,8 @@ export const createPatientController = (fastify) => ({
                 .filter(r => r.rr !== null && r.rr > 0)
                 .map(r => parseFloat(r.rr));
 
-            const lastNightHR = calculateMedian(nightHrValues) || 0;
-            const lastNightRR = calculateMedian(nightRrValues) || 0;
+            const lastNightHR = calculateAverage(nightHrValues) || 0;
+            const lastNightRR = calculateAverage(nightRrValues) || 0;
 
             const outOfBedMinutes = countMinutesWithStatus(lastNightReadings, 0);
             const movementMinutes = countMinutesWithStatus(lastNightReadings, 2);
@@ -252,6 +253,7 @@ export const createPatientController = (fastify) => ({
             if (currentBedStatus === 0) bedStatusText = "Out of bed";
             else if (currentBedStatus === 1) bedStatusText = "In bed";
             else if (currentBedStatus === 2) bedStatusText = "Movement";
+            else if (currentBedStatus === null) bedStatusText = "No data";
 
             return {
                 patientId: patient.patient_id,
