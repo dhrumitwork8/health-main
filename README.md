@@ -47,14 +47,22 @@ If you're getting `EHOSTUNREACH` or `ECONNREFUSED` errors when accessing the API
 
 1. **Database is on the same VPS (localhost)**
    - Set `DB_HOST=localhost` or `DB_HOST=127.0.0.1` in your `.env` file or PM2 ecosystem file
+   - This is the most common solution if both app and database are on the same server
 
-2. **Database is on a different server**
-   - Ensure the database IP (`193.107.31.24` in your case) is accessible from your VPS
-   - Check firewall rules on both servers
+2. **Database hostname DNS resolution issues** (e.g., `nordicmedtek3.vps.itpays.cloud`)
+   - **Try using IP address instead**: If the hostname doesn't resolve, use the actual IP address
+   - Test DNS resolution: `nslookup nordicmedtek3.vps.itpays.cloud` or `ping nordicmedtek3.vps.itpays.cloud`
+   - If DNS fails, find the IP address and use it: `DB_HOST=<actual_ip_address>`
+
+3. **Database is on a different server**
+   - Ensure the database server is accessible from your VPS
+   - Test connectivity: `ping <db_host>` and `telnet <db_host> 5432`
+   - Check firewall rules on both servers (allow port 5432)
    - Verify PostgreSQL is configured to accept connections from your VPS IP
-   - Update `postgresql.conf` and `pg_hba.conf` on the database server
+   - Update `postgresql.conf` (set `listen_addresses = '*'` or specific IPs)
+   - Update `pg_hba.conf` to allow connections from your VPS IP
 
-3. **PM2 Environment Variables**
+4. **PM2 Environment Variables**
    - If using PM2, set environment variables in your PM2 ecosystem file or use `pm2 start` with `--env` flag
    - Example PM2 ecosystem config:
    ```json
@@ -73,7 +81,7 @@ If you're getting `EHOSTUNREACH` or `ECONNREFUSED` errors when accessing the API
    }
    ```
 
-4. **Test Database Connection**
+5. **Test Database Connection**
    - The server now tests the database connection on startup
    - Check PM2 logs: `pm2 logs zh-graph-server`
    - Look for connection success/failure messages
@@ -108,9 +116,34 @@ pm2 startup
 ### Troubleshooting
 
 - **Check PM2 logs**: `pm2 logs zh-graph-server`
+  - Look for database connection test messages on startup
+  - Check for specific error codes (EHOSTUNREACH, ENOTFOUND, ECONNREFUSED, etc.)
+
 - **Restart the app**: `pm2 restart zh-graph-server`
+
 - **Check environment variables**: `pm2 env zh-graph-server`
-- **Test database connection from VPS**: `psql -h <db_host> -U <db_user> -d <db_name>`
+  - Verify `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` are set correctly
+
+- **Test database connection from VPS**:
+  ```bash
+  # Test with psql
+  psql -h <db_host> -U <db_user> -d <db_name>
+  
+  # Test DNS resolution
+  nslookup <db_host>
+  ping <db_host>
+  
+  # Test port connectivity
+  telnet <db_host> 5432
+  # or
+  nc -zv <db_host> 5432
+  ```
+
+- **Common Error Codes**:
+  - `EHOSTUNREACH`: Host cannot be reached (network/firewall issue)
+  - `ENOTFOUND`: DNS resolution failed (try using IP address)
+  - `ECONNREFUSED`: Connection refused (PostgreSQL not running or not accepting connections)
+  - `ETIMEDOUT`: Connection timeout (server may be down)
 
 ---
 

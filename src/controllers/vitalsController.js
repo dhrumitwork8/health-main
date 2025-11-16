@@ -10,6 +10,7 @@ import {
   getRsByRange,
   getColumns,
 } from "../models/readingsVitalModel.js";
+import { sendDbErrorResponse } from "../utils/dbErrorHandler.js";
 
 const trimPercent = 0.1;
 
@@ -63,8 +64,13 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error(err);
-      reply.code(500).send({ error: "Internal Server Error" });
+      reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
   },
 
@@ -113,8 +119,13 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error(err);
-      reply.code(500).send({ error: "Internal Server Error" });
+      reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
   },
 
@@ -163,8 +174,13 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error(err);
-      reply.code(500).send({ error: "Internal Server Error" });
+      reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
   },
 
@@ -224,8 +240,13 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error(err);
-      reply.code(500).send({ error: "Internal Server Error" });
+      reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
   },
 
@@ -256,6 +277,11 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error("HRV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -292,6 +318,11 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error("SV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -357,17 +388,15 @@ export const createVitalsController = (fastify) => ({
 
       return combined;
     } catch (err) {
-      fastify.log.error("HRV/SV API Error:", err);
-      
-      // Provide more helpful error messages for database connection issues
-      let errorDetails = err.message;
-      if (err.code === "EHOSTUNREACH" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT") {
-        errorDetails = `Database connection failed: Cannot reach database at ${process.env.DB_HOST}:${process.env.DB_PORT}. Please check your database configuration.`;
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
       }
       
+      fastify.log.error("HRV/SV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
-        details: errorDetails,
+        details: err.message,
       });
     }
   },
@@ -399,6 +428,11 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error("STR API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -435,6 +469,11 @@ export const createVitalsController = (fastify) => ({
 
       return formattedResponse;
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error("RS API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -449,6 +488,11 @@ export const createVitalsController = (fastify) => ({
       const { rows } = await getColumns();
       return { columns: rows };
     } catch (err) {
+      // Check if it's a database connection error
+      if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+        return sendDbErrorResponse(reply, err, fastify);
+      }
+      
       fastify.log.error("Columns test error:", err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }

@@ -5,6 +5,7 @@ import {
     getPatientWithSensor,
 } from "../models/patientModel.js";
 import { pool } from "../db/pool.js";
+import { sendDbErrorResponse } from "../utils/dbErrorHandler.js";
 
 // Helper function to calculate median
 const calculateMedian = (values) => {
@@ -46,6 +47,11 @@ export const createPatientController = (fastify) => ({
                 tables: tables.map(t => t.table_name)
             };
         } catch (err) {
+            // Check if it's a database connection error
+            if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+                return sendDbErrorResponse(reply, err, fastify);
+            }
+            
             fastify.log.error("Database test error:", err);
             reply.code(500).send({
                 error: "Database connection failed",
@@ -160,8 +166,13 @@ export const createPatientController = (fastify) => ({
 
             return { patients: patientData };
         } catch (err) {
+            // Check if it's a database connection error
+            if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+                return sendDbErrorResponse(reply, err, fastify);
+            }
+            
             fastify.log.error(err);
-            reply.code(500).send({ error: "Internal Server Error" });
+            reply.code(500).send({ error: "Internal Server Error", details: err.message });
         }
     },
 
@@ -272,8 +283,13 @@ export const createPatientController = (fastify) => ({
                 }
             };
         } catch (err) {
+            // Check if it's a database connection error
+            if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
+                return sendDbErrorResponse(reply, err, fastify);
+            }
+            
             fastify.log.error(err);
-            reply.code(500).send({ error: "Internal Server Error" });
+            reply.code(500).send({ error: "Internal Server Error", details: err.message });
         }
     },
 });
