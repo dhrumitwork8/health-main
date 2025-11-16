@@ -358,9 +358,16 @@ export const createVitalsController = (fastify) => ({
       return combined;
     } catch (err) {
       fastify.log.error("HRV/SV API Error:", err);
+      
+      // Provide more helpful error messages for database connection issues
+      let errorDetails = err.message;
+      if (err.code === "EHOSTUNREACH" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT") {
+        errorDetails = `Database connection failed: Cannot reach database at ${process.env.DB_HOST}:${process.env.DB_PORT}. Please check your database configuration.`;
+      }
+      
       reply.code(500).send({
         error: "Internal Server Error",
-        details: err.message,
+        details: errorDetails,
       });
     }
   },

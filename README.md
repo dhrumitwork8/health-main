@@ -1,8 +1,120 @@
-# health
+# Health API Backend
 
-
+Fastify-based API server for health monitoring data.
 
 ## Getting started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- PostgreSQL database
+- PM2 (for production deployment)
+
+### Installation
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Create a `.env` file in the root directory with the following variables:
+```env
+PORT=10000
+DB_USER=your_db_user
+DB_HOST=your_db_host
+DB_NAME=your_db_name
+DB_PASSWORD=your_db_password
+DB_PORT=5432
+```
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+4. Start the production server:
+```bash
+npm start
+```
+
+## Deployment on VPS with PM2
+
+### Database Connection Issue Fix
+
+If you're getting `EHOSTUNREACH` or `ECONNREFUSED` errors when accessing the API from your VPS, it means the application cannot reach the database server.
+
+**Common causes and solutions:**
+
+1. **Database is on the same VPS (localhost)**
+   - Set `DB_HOST=localhost` or `DB_HOST=127.0.0.1` in your `.env` file or PM2 ecosystem file
+
+2. **Database is on a different server**
+   - Ensure the database IP (`193.107.31.24` in your case) is accessible from your VPS
+   - Check firewall rules on both servers
+   - Verify PostgreSQL is configured to accept connections from your VPS IP
+   - Update `postgresql.conf` and `pg_hba.conf` on the database server
+
+3. **PM2 Environment Variables**
+   - If using PM2, set environment variables in your PM2 ecosystem file or use `pm2 start` with `--env` flag
+   - Example PM2 ecosystem config:
+   ```json
+   {
+     "name": "zh-graph-server",
+     "script": "server.js",
+     "cwd": "/path/to/zh-graph-server",
+     "env": {
+       "PORT": "8000",
+       "DB_USER": "your_db_user",
+       "DB_HOST": "localhost",  // or your database IP
+       "DB_NAME": "your_db_name",
+       "DB_PASSWORD": "your_db_password",
+       "DB_PORT": "5432"
+     }
+   }
+   ```
+
+4. **Test Database Connection**
+   - The server now tests the database connection on startup
+   - Check PM2 logs: `pm2 logs zh-graph-server`
+   - Look for connection success/failure messages
+
+### PM2 Deployment Steps
+
+1. Navigate to your project directory:
+```bash
+cd /path/to/zh-graph-server
+```
+
+2. Start with PM2:
+```bash
+pm2 start server.js --name zh-graph-server --env production
+```
+
+Or use an ecosystem file:
+```bash
+pm2 start ecosystem.config.js
+```
+
+3. Save PM2 configuration:
+```bash
+pm2 save
+```
+
+4. Setup PM2 to start on boot:
+```bash
+pm2 startup
+```
+
+### Troubleshooting
+
+- **Check PM2 logs**: `pm2 logs zh-graph-server`
+- **Restart the app**: `pm2 restart zh-graph-server`
+- **Check environment variables**: `pm2 env zh-graph-server`
+- **Test database connection from VPS**: `psql -h <db_host> -U <db_user> -d <db_name>`
+
+---
+
+## Getting started (Original GitLab Template)
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
