@@ -51,37 +51,25 @@ export const getSvLive = (limit) => {
 
 export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
   const query = `
-    WITH time_buckets AS (
-      SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        AVG(hr) as avg_hr,
-        AVG(rr) as avg_rr,
-        AVG(fft) as avg_fft,
-        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
-        COUNT(*) as sample_count
-      FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
+    SELECT
+      to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+      COUNT(*) as sample_count,
+      AVG(hr) AS trimmed_hr,
+      AVG(rr) AS trimmed_rr,
+      AVG(fft) AS fft_value,
+      MAX(bed_status) AS most_common_bed_status
+    FROM (
+      SELECT ts, hr, rr, fft, bed_status
+      FROM readings_vital
+      WHERE ts >= NOW() - $1::interval
         AND hr IS NOT NULL
         AND rr IS NOT NULL
-      GROUP BY
-        time_bucket
-      ORDER BY
-        time_bucket DESC
-      LIMIT 1000
-    )
-    SELECT
-      time_bucket,
-      sample_count,
-      avg_hr AS trimmed_hr,
-      avg_rr AS trimmed_rr,
-      avg_fft AS fft_value,
-      most_common_bed_status
-    FROM
-      time_buckets
-    ORDER BY
-      time_bucket;
+      ORDER BY ts DESC
+      LIMIT 50000
+    ) sub
+    GROUP BY time_bucket
+    ORDER BY time_bucket DESC
+    LIMIT 500;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -92,16 +80,17 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
     SELECT
       to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
       AVG(hrv) as trimmed_hrv
-    FROM
-      readings_vital
-    WHERE
-      ts >= NOW() - $1::interval
-      AND hrv IS NOT NULL
-    GROUP BY
-      time_bucket
-    ORDER BY
-      time_bucket DESC
-    LIMIT 1000;
+    FROM (
+      SELECT ts, hrv
+      FROM readings_vital
+      WHERE ts >= NOW() - $1::interval
+        AND hrv IS NOT NULL
+      ORDER BY ts DESC
+      LIMIT 50000
+    ) sub
+    GROUP BY time_bucket
+    ORDER BY time_bucket DESC
+    LIMIT 500;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -112,16 +101,17 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
     SELECT
       to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
       AVG(sv) as trimmed_sv
-    FROM
-      readings_vital
-    WHERE
-      ts >= NOW() - $1::interval
-      AND sv IS NOT NULL
-    GROUP BY
-      time_bucket
-    ORDER BY
-      time_bucket DESC
-    LIMIT 1000;
+    FROM (
+      SELECT ts, sv
+      FROM readings_vital
+      WHERE ts >= NOW() - $1::interval
+        AND sv IS NOT NULL
+      ORDER BY ts DESC
+      LIMIT 50000
+    ) sub
+    GROUP BY time_bucket
+    ORDER BY time_bucket DESC
+    LIMIT 500;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -132,16 +122,17 @@ export const getStrByRange = (interval, bucketSeconds, trimPercent) => {
     SELECT
       to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
       AVG(str) as trimmed_str
-    FROM
-      readings_vital
-    WHERE
-      ts >= NOW() - $1::interval
-      AND str IS NOT NULL
-    GROUP BY
-      time_bucket
-    ORDER BY
-      time_bucket DESC
-    LIMIT 1000;
+    FROM (
+      SELECT ts, str
+      FROM readings_vital
+      WHERE ts >= NOW() - $1::interval
+        AND str IS NOT NULL
+      ORDER BY ts DESC
+      LIMIT 50000
+    ) sub
+    GROUP BY time_bucket
+    ORDER BY time_bucket DESC
+    LIMIT 500;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -152,16 +143,17 @@ export const getRsByRange = (interval, bucketSeconds, trimPercent) => {
     SELECT
       to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
       AVG(rs) as trimmed_rs
-    FROM
-      readings_vital
-    WHERE
-      ts >= NOW() - $1::interval
-      AND rs IS NOT NULL
-    GROUP BY
-      time_bucket
-    ORDER BY
-      time_bucket DESC
-    LIMIT 1000;
+    FROM (
+      SELECT ts, rs
+      FROM readings_vital
+      WHERE ts >= NOW() - $1::interval
+        AND rs IS NOT NULL
+      ORDER BY ts DESC
+      LIMIT 50000
+    ) sub
+    GROUP BY time_bucket
+    ORDER BY time_bucket DESC
+    LIMIT 500;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
