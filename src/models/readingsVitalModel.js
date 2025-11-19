@@ -54,55 +54,32 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
     WITH time_buckets AS (
       SELECT
         to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        hr,
-        rr,
-        fft,
-        bed_status
+        AVG(hr) as avg_hr,
+        AVG(rr) as avg_rr,
+        AVG(fft) as avg_fft,
+        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
+        COUNT(*) as sample_count
       FROM
         readings_vital
       WHERE
         ts >= NOW() - $1::interval
         AND hr IS NOT NULL
         AND rr IS NOT NULL
-    ),
-    bucket_aggregates AS (
-      SELECT
-        time_bucket,
-        array_agg(hr ORDER BY hr) AS hr_values,
-        array_agg(rr ORDER BY rr) AS rr_values,
-        array_agg(fft) AS fft_values,
-        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
-        COUNT(*) as sample_count
-      FROM
-        time_buckets
       GROUP BY
         time_bucket
+      ORDER BY
+        time_bucket DESC
+      LIMIT 1000
     )
     SELECT
       time_bucket,
       sample_count,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(hr_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(hr_values[
-            GREATEST(1, ceil(array_length(hr_values, 1) * ${trimPercent})):
-            LEAST(array_length(hr_values, 1), array_length(hr_values, 1) - floor(array_length(hr_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_hr,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(rr_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(rr_values[
-            GREATEST(1, ceil(array_length(rr_values, 1) * ${trimPercent})):
-            LEAST(array_length(rr_values, 1), array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_rr,
-      (fft_values[1]) AS fft_value,
+      avg_hr AS trimmed_hr,
+      avg_rr AS trimmed_rr,
+      avg_fft AS fft_value,
       most_common_bed_status
     FROM
-      bucket_aggregates
+      time_buckets
     ORDER BY
       time_bucket;
   `;
@@ -112,41 +89,19 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
 
 export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
   const query = `
-    WITH time_buckets AS (
-      SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        hrv
-      FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
-        AND hrv IS NOT NULL
-    ),
-    bucket_aggregates AS (
-      SELECT
-        time_bucket,
-        array_agg(hrv ORDER BY hrv) AS hrv_values,
-        COUNT(*) as sample_count
-      FROM
-        time_buckets
-      GROUP BY
-        time_bucket
-    )
     SELECT
-      time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(hrv_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(hrv_values[
-            GREATEST(1, ceil(array_length(hrv_values, 1) * ${trimPercent})):
-            LEAST(array_length(hrv_values, 1), array_length(hrv_values, 1) - floor(array_length(hrv_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_hrv
+      to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+      AVG(hrv) as trimmed_hrv
     FROM
-      bucket_aggregates
+      readings_vital
+    WHERE
+      ts >= NOW() - $1::interval
+      AND hrv IS NOT NULL
+    GROUP BY
+      time_bucket
     ORDER BY
-      time_bucket;
+      time_bucket DESC
+    LIMIT 1000;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -154,41 +109,19 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
 
 export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
   const query = `
-    WITH time_buckets AS (
-      SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        sv
-      FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
-        AND sv IS NOT NULL
-    ),
-    bucket_aggregates AS (
-      SELECT
-        time_bucket,
-        array_agg(sv ORDER BY sv) AS sv_values,
-        COUNT(*) as sample_count
-      FROM
-        time_buckets
-      GROUP BY
-        time_bucket
-    )
     SELECT
-      time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(sv_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(sv_values[
-            GREATEST(1, ceil(array_length(sv_values, 1) * ${trimPercent})):
-            LEAST(array_length(sv_values, 1), array_length(sv_values, 1) - floor(array_length(sv_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_sv
+      to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+      AVG(sv) as trimmed_sv
     FROM
-      bucket_aggregates
+      readings_vital
+    WHERE
+      ts >= NOW() - $1::interval
+      AND sv IS NOT NULL
+    GROUP BY
+      time_bucket
     ORDER BY
-      time_bucket;
+      time_bucket DESC
+    LIMIT 1000;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -196,41 +129,19 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
 
 export const getStrByRange = (interval, bucketSeconds, trimPercent) => {
   const query = `
-    WITH time_buckets AS (
-      SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        str
-      FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
-        AND str IS NOT NULL
-    ),
-    bucket_aggregates AS (
-      SELECT
-        time_bucket,
-        array_agg(str ORDER BY str) AS str_values,
-        COUNT(*) as sample_count
-      FROM
-        time_buckets
-      GROUP BY
-        time_bucket
-    )
     SELECT
-      time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(str_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(str_values[
-            GREATEST(1, ceil(array_length(str_values, 1) * ${trimPercent})):
-            LEAST(array_length(str_values, 1), array_length(str_values, 1) - floor(array_length(str_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_str
+      to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+      AVG(str) as trimmed_str
     FROM
-      bucket_aggregates
+      readings_vital
+    WHERE
+      ts >= NOW() - $1::interval
+      AND str IS NOT NULL
+    GROUP BY
+      time_bucket
     ORDER BY
-      time_bucket;
+      time_bucket DESC
+    LIMIT 1000;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -238,41 +149,19 @@ export const getStrByRange = (interval, bucketSeconds, trimPercent) => {
 
 export const getRsByRange = (interval, bucketSeconds, trimPercent) => {
   const query = `
-    WITH time_buckets AS (
-      SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        rs
-      FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
-        AND rs IS NOT NULL
-    ),
-    bucket_aggregates AS (
-      SELECT
-        time_bucket,
-        array_agg(rs ORDER BY rs) AS rs_values,
-        COUNT(*) as sample_count
-      FROM
-        time_buckets
-      GROUP BY
-        time_bucket
-    )
     SELECT
-      time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(rs_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(rs_values[
-            GREATEST(1, ceil(array_length(rs_values, 1) * ${trimPercent})):
-            LEAST(array_length(rs_values, 1), array_length(rs_values, 1) - floor(array_length(rs_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_rs
+      to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+      AVG(rs) as trimmed_rs
     FROM
-      bucket_aggregates
+      readings_vital
+    WHERE
+      ts >= NOW() - $1::interval
+      AND rs IS NOT NULL
+    GROUP BY
+      time_bucket
     ORDER BY
-      time_bucket;
+      time_bucket DESC
+    LIMIT 1000;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
