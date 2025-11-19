@@ -1,8 +1,153 @@
-# health
+# Health API Backend
 
-
+Fastify-based API server for health monitoring data.
 
 ## Getting started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- PostgreSQL database
+- PM2 (for production deployment)
+
+### Installation
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Create a `.env` file in the root directory with the following variables:
+```env
+PORT=10000
+DB_USER=your_db_user
+DB_HOST=your_db_host
+DB_NAME=your_db_name
+DB_PASSWORD=your_db_password
+DB_PORT=5432
+```
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+4. Start the production server:
+```bash
+npm start
+```
+
+## Deployment on VPS with PM2
+
+### Database Connection Issue Fix
+
+If you're getting `EHOSTUNREACH` or `ECONNREFUSED` errors when accessing the API from your VPS, it means the application cannot reach the database server.
+
+**Common causes and solutions:**
+
+1. **Database is on the same VPS (localhost)**
+   - Set `DB_HOST=localhost` or `DB_HOST=127.0.0.1` in your `.env` file or PM2 ecosystem file
+   - This is the most common solution if both app and database are on the same server
+
+2. **Database hostname DNS resolution issues** (e.g., `nordicmedtek3.vps.itpays.cloud`)
+   - **Try using IP address instead**: If the hostname doesn't resolve, use the actual IP address
+   - Test DNS resolution: `nslookup nordicmedtek3.vps.itpays.cloud` or `ping nordicmedtek3.vps.itpays.cloud`
+   - If DNS fails, find the IP address and use it: `DB_HOST=<actual_ip_address>`
+
+3. **Database is on a different server**
+   - Ensure the database server is accessible from your VPS
+   - Test connectivity: `ping <db_host>` and `telnet <db_host> 5432`
+   - Check firewall rules on both servers (allow port 5432)
+   - Verify PostgreSQL is configured to accept connections from your VPS IP
+   - Update `postgresql.conf` (set `listen_addresses = '*'` or specific IPs)
+   - Update `pg_hba.conf` to allow connections from your VPS IP
+
+4. **PM2 Environment Variables**
+   - If using PM2, set environment variables in your PM2 ecosystem file or use `pm2 start` with `--env` flag
+   - Example PM2 ecosystem config:
+   ```json
+   {
+     "name": "zh-graph-server",
+     "script": "server.js",
+     "cwd": "/path/to/zh-graph-server",
+     "env": {
+       "PORT": "8000",
+       "DB_USER": "your_db_user",
+       "DB_HOST": "localhost",  // or your database IP
+       "DB_NAME": "your_db_name",
+       "DB_PASSWORD": "your_db_password",
+       "DB_PORT": "5432"
+     }
+   }
+   ```
+
+5. **Test Database Connection**
+   - The server now tests the database connection on startup
+   - Check PM2 logs: `pm2 logs zh-graph-server`
+   - Look for connection success/failure messages
+
+### PM2 Deployment Steps
+
+1. Navigate to your project directory:
+```bash
+cd /path/to/zh-graph-server
+```
+
+2. Start with PM2:
+```bash
+pm2 start server.js --name zh-graph-server --env production
+```
+
+Or use an ecosystem file:
+```bash
+pm2 start ecosystem.config.js
+```
+
+3. Save PM2 configuration:
+```bash
+pm2 save
+```
+
+4. Setup PM2 to start on boot:
+```bash
+pm2 startup
+```
+
+### Troubleshooting
+
+- **Check PM2 logs**: `pm2 logs zh-graph-server`
+  - Look for database connection test messages on startup
+  - Check for specific error codes (EHOSTUNREACH, ENOTFOUND, ECONNREFUSED, etc.)
+
+- **Restart the app**: `pm2 restart zh-graph-server`
+
+- **Check environment variables**: `pm2 env zh-graph-server`
+  - Verify `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` are set correctly
+
+- **Test database connection from VPS**:
+  ```bash
+  # Test with psql
+  psql -h <db_host> -U <db_user> -d <db_name>
+  
+  # Test DNS resolution
+  nslookup <db_host>
+  ping <db_host>
+  
+  # Test port connectivity
+  telnet <db_host> 5432
+  # or
+  nc -zv <db_host> 5432
+  ```
+
+- **Common Error Codes**:
+  - `EHOSTUNREACH`: Host cannot be reached (network/firewall issue)
+  - `ENOTFOUND`: DNS resolution failed (try using IP address)
+  - `ECONNREFUSED`: Connection refused (PostgreSQL not running or not accepting connections)
+  - `ETIMEDOUT`: Connection timeout (server may be down)
+
+---
+
+## Getting started (Original GitLab Template)
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 

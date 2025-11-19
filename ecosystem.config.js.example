@@ -1,0 +1,32 @@
+module.exports = {
+  apps: [
+    {
+      name: "zh-graph-server",
+      script: "server.js",
+      cwd: "/path/to/zh-graph-server", // Update this to your actual path
+      instances: 1,
+      exec_mode: "fork",
+      env: {
+        NODE_ENV: "production",
+        PORT: "8000",
+        // Database configuration
+        // IMPORTANT: Update these values based on your setup
+        // If database is on the same VPS, use: DB_HOST=localhost
+        // If database is on a different server, use the actual IP
+        DB_USER: "your_db_user",
+        DB_HOST: "localhost", // Change to your database host (e.g., "193.107.31.24" or "localhost")
+        DB_NAME: "your_db_name",
+        DB_PASSWORD: "your_db_password",
+        DB_PORT: "5432",
+      },
+      error_file: "./logs/pm2-error.log",
+      out_file: "./logs/pm2-out.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      merge_logs: true,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "500M",
+    },
+  ],
+};
+
