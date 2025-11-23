@@ -52,7 +52,7 @@ export const getSvLive = (limit) => {
 export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
   // For large ranges (month/year), use simpler aggregation to improve performance
   const isLargeRange = interval === '30 days' || interval === '1 year';
-  
+
   if (isLargeRange) {
     // Simplified query without array operations for better performance
     const query = `
@@ -76,7 +76,7 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
     `;
     return pool.query(query, [interval, bucketSeconds]);
   }
-  
+
   // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (

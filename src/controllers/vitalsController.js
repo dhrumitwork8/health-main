@@ -59,8 +59,8 @@ export const createVitalsController = (fastify) => ({
               ? row.signalstrength < 1000
                 ? "poor"
                 : row.signalstrength < 2000
-                ? "fair"
-                : "good"
+                  ? "fair"
+                  : "good"
               : "poor",
           bedStatus:
             row.bedstatus !== null && !isNaN(row.bedstatus)
@@ -71,8 +71,8 @@ export const createVitalsController = (fastify) => ({
               ? row.bedstatus === 0
                 ? "out of bed"
                 : row.bedstatus === 1
-                ? "in bed"
-                : "movement"
+                  ? "in bed"
+                  : "movement"
               : null,
           hrReliable:
             row.signalstrength !== null && !isNaN(row.signalstrength)
@@ -87,7 +87,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error(err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
@@ -114,8 +114,8 @@ export const createVitalsController = (fastify) => ({
               ? row.signalstrength < 1000
                 ? "poor"
                 : row.signalstrength < 2000
-                ? "fair"
-                : "good"
+                  ? "fair"
+                  : "good"
               : "poor",
           bedStatus:
             row.bedstatus !== null && !isNaN(row.bedstatus)
@@ -126,8 +126,8 @@ export const createVitalsController = (fastify) => ({
               ? row.bedstatus === 0
                 ? "out of bed"
                 : row.bedstatus === 1
-                ? "in bed"
-                : "movement"
+                  ? "in bed"
+                  : "movement"
               : null,
           hrvReliable:
             row.signalstrength !== null && !isNaN(row.signalstrength)
@@ -142,7 +142,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error(err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
@@ -169,8 +169,8 @@ export const createVitalsController = (fastify) => ({
               ? row.signalstrength < 1000
                 ? "poor"
                 : row.signalstrength < 2000
-                ? "fair"
-                : "good"
+                  ? "fair"
+                  : "good"
               : "poor",
           bedStatus:
             row.bedstatus !== null && !isNaN(row.bedstatus)
@@ -181,8 +181,8 @@ export const createVitalsController = (fastify) => ({
               ? row.bedstatus === 0
                 ? "out of bed"
                 : row.bedstatus === 1
-                ? "in bed"
-                : "movement"
+                  ? "in bed"
+                  : "movement"
               : null,
           svReliable:
             row.signalstrength !== null && !isNaN(row.signalstrength)
@@ -197,7 +197,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error(err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
@@ -206,7 +206,7 @@ export const createVitalsController = (fastify) => ({
   getVitalsByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
-      
+
       // Check cache first
       const cacheKey = `vitals:${range}`;
       const cached = cache.get(cacheKey);
@@ -214,7 +214,7 @@ export const createVitalsController = (fastify) => ({
         reply.header('X-Cache', 'HIT');
         return cached;
       }
-      
+
       const settings = rangeSettings[range];
 
       if (!settings) {
@@ -246,8 +246,8 @@ export const createVitalsController = (fastify) => ({
             ? row.fft_value < 1000
               ? "poor"
               : row.fft_value < 2000
-              ? "fair"
-              : "good"
+                ? "fair"
+                : "good"
             : "poor",
         bedStatus:
           row.most_common_bed_status !== null && row.most_common_bed_status !== undefined
@@ -258,8 +258,8 @@ export const createVitalsController = (fastify) => ({
             ? row.most_common_bed_status === 0
               ? "out of bed"
               : row.most_common_bed_status === 1
-              ? "in bed"
-              : "movement"
+                ? "in bed"
+                : "movement"
             : null,
         hrReliable:
           row.fft_value !== null && row.fft_value !== undefined ? row.fft_value >= 1000 : false,
@@ -277,7 +277,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error(err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
@@ -314,7 +314,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("HRV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -355,7 +355,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("SV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -425,7 +425,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("HRV/SV API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -465,7 +465,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("STR API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -506,7 +506,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("RS API Error:", err);
       reply.code(500).send({
         error: "Internal Server Error",
@@ -525,7 +525,7 @@ export const createVitalsController = (fastify) => ({
       if (err.code && (err.code.startsWith("E") || err.code.startsWith("28") || err.code.startsWith("3D"))) {
         return sendDbErrorResponse(reply, err, fastify);
       }
-      
+
       fastify.log.error("Columns test error:", err);
       reply.code(500).send({ error: "Internal Server Error", details: err.message });
     }
