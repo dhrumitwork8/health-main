@@ -50,6 +50,34 @@ export const getSvLive = (limit) => {
 };
 
 export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
+  // For large ranges (month/year), use simpler aggregation to improve performance
+  const isLargeRange = interval === '30 days' || interval === '1 year';
+  
+  if (isLargeRange) {
+    // Simplified query without array operations for better performance
+    const query = `
+      SELECT
+        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+        AVG(hr) as trimmed_hr,
+        AVG(rr) as trimmed_rr,
+        AVG(fft) as fft_value,
+        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
+        COUNT(*) as sample_count
+      FROM
+        readings_vital
+      WHERE
+        ts >= NOW() - $1::interval
+        AND hr IS NOT NULL
+        AND rr IS NOT NULL
+      GROUP BY
+        time_bucket
+      ORDER BY
+        time_bucket;
+    `;
+    return pool.query(query, [interval, bucketSeconds]);
+  }
+  
+  // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (
       SELECT

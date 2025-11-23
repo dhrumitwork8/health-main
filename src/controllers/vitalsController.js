@@ -11,8 +11,27 @@ import {
   getColumns,
 } from "../models/readingsVitalModel.js";
 import { sendDbErrorResponse } from "../utils/dbErrorHandler.js";
+import { cache } from "../utils/cache.js";
 
 const trimPercent = 0.1;
+
+// Cache TTLs based on range
+const getCacheTTL = (range) => {
+  switch (range) {
+    case 'last_minute':
+    case 'last_hour':
+      return 30000; // 30 seconds
+    case 'last_day':
+      return 60000; // 1 minute
+    case 'last_week':
+      return 120000; // 2 minutes
+    case 'last_month':
+    case 'last_year':
+      return 300000; // 5 minutes
+    default:
+      return 60000; // 1 minute default
+  }
+};
 
 export const createVitalsController = (fastify) => ({
   getVitalsLive: async (request, reply) => {
@@ -187,6 +206,15 @@ export const createVitalsController = (fastify) => ({
   getVitalsByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
+      
+      // Check cache first
+      const cacheKey = `vitals:${range}`;
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        reply.header('X-Cache', 'HIT');
+        return cached;
+      }
+      
       const settings = rangeSettings[range];
 
       if (!settings) {
@@ -237,6 +265,11 @@ export const createVitalsController = (fastify) => ({
           row.fft_value !== null && row.fft_value !== undefined ? row.fft_value >= 1000 : false,
         sampleCount: row.sample_count || 0,
       }));
+
+      // Cache the response
+      const ttl = getCacheTTL(range);
+      cache.set(cacheKey, formattedResponse, ttl);
+      reply.header('X-Cache', 'MISS');
 
       return formattedResponse;
     } catch (err) {
