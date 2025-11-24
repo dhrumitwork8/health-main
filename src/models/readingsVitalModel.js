@@ -139,6 +139,29 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
 };
 
 export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
+  // For large ranges (month/year), use simpler aggregation to improve performance
+  const isLargeRange = interval === '30 days' || interval === '1 year';
+  
+  if (isLargeRange) {
+    // Simplified query without array operations for better performance
+    const query = `
+      SELECT
+        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+        AVG(hrv) as trimmed_hrv
+      FROM
+        readings_vital
+      WHERE
+        ts >= NOW() - $1::interval
+        AND hrv IS NOT NULL
+      GROUP BY
+        time_bucket
+      ORDER BY
+        time_bucket;
+    `;
+    return pool.query(query, [interval, bucketSeconds]);
+  }
+  
+  // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (
       SELECT
@@ -181,6 +204,29 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
 };
 
 export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
+  // For large ranges (month/year), use simpler aggregation to improve performance
+  const isLargeRange = interval === '30 days' || interval === '1 year';
+  
+  if (isLargeRange) {
+    // Simplified query without array operations for better performance
+    const query = `
+      SELECT
+        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+        AVG(sv) as trimmed_sv
+      FROM
+        readings_vital
+      WHERE
+        ts >= NOW() - $1::interval
+        AND sv IS NOT NULL
+      GROUP BY
+        time_bucket
+      ORDER BY
+        time_bucket;
+    `;
+    return pool.query(query, [interval, bucketSeconds]);
+  }
+  
+  // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (
       SELECT

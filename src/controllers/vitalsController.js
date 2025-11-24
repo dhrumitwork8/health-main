@@ -286,6 +286,15 @@ export const createVitalsController = (fastify) => ({
   getHrvByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
+      
+      // Check cache first
+      const cacheKey = `hrv:${range}`;
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        reply.header('X-Cache', 'HIT');
+        return cached;
+      }
+      
       const settings = rangeSettings[range];
 
       if (!settings) {
@@ -308,6 +317,11 @@ export const createVitalsController = (fastify) => ({
             : null,
       }));
 
+      // Cache the response
+      const ttl = getCacheTTL(range);
+      cache.set(cacheKey, formattedResponse, ttl);
+      reply.header('X-Cache', 'MISS');
+
       return formattedResponse;
     } catch (err) {
       // Check if it's a database connection error
@@ -327,6 +341,15 @@ export const createVitalsController = (fastify) => ({
   getSvByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
+      
+      // Check cache first
+      const cacheKey = `sv:${range}`;
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        reply.header('X-Cache', 'HIT');
+        return cached;
+      }
+      
       const settings = rangeSettings[range];
 
       if (!settings) {
@@ -348,6 +371,11 @@ export const createVitalsController = (fastify) => ({
             ? parseFloat(row.trimmed_sv.toFixed(2))
             : null,
       }));
+
+      // Cache the response
+      const ttl = getCacheTTL(range);
+      cache.set(cacheKey, formattedResponse, ttl);
+      reply.header('X-Cache', 'MISS');
 
       return formattedResponse;
     } catch (err) {
