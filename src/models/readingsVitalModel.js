@@ -141,7 +141,7 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
 export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
   // For large ranges (month/year), use simpler aggregation to improve performance
   const isLargeRange = interval === '30 days' || interval === '1 year';
-  
+
   if (isLargeRange) {
     // Simplified query without array operations for better performance
     const query = `
@@ -160,7 +160,7 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
     `;
     return pool.query(query, [interval, bucketSeconds]);
   }
-  
+
   // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (
@@ -206,7 +206,7 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
 export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
   // For large ranges (month/year), use simpler aggregation to improve performance
   const isLargeRange = interval === '30 days' || interval === '1 year';
-  
+
   if (isLargeRange) {
     // Simplified query without array operations for better performance
     const query = `
@@ -225,7 +225,7 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
     `;
     return pool.query(query, [interval, bucketSeconds]);
   }
-  
+
   // Original detailed query for smaller ranges
   const query = `
     WITH time_buckets AS (

@@ -286,7 +286,7 @@ export const createVitalsController = (fastify) => ({
   getHrvByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
-      
+
       // Check cache first
       const cacheKey = `hrv:${range}`;
       const cached = cache.get(cacheKey);
@@ -294,7 +294,7 @@ export const createVitalsController = (fastify) => ({
         reply.header('X-Cache', 'HIT');
         return cached;
       }
-      
+
       const settings = rangeSettings[range];
 
       if (!settings) {
@@ -341,7 +341,7 @@ export const createVitalsController = (fastify) => ({
   getSvByRange: async (request, reply) => {
     try {
       const { range = "last_day" } = request.query;
-      
+
       // Check cache first
       const cacheKey = `sv:${range}`;
       const cached = cache.get(cacheKey);
@@ -349,7 +349,7 @@ export const createVitalsController = (fastify) => ({
         reply.header('X-Cache', 'HIT');
         return cached;
       }
-      
+
       const settings = rangeSettings[range];
 
       if (!settings) {
