@@ -50,34 +50,62 @@ export const getSvLive = (limit) => {
 };
 
 export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
-  // For large ranges (month/year), use simpler aggregation to improve performance
+  // Optimized query for all ranges - uses faster MODE calculation
+  // For large ranges: simple AVG, for smaller ranges: trimmed mean with array operations
   const isLargeRange = interval === '30 days' || interval === '1 year';
 
   if (isLargeRange) {
-    // Simplified query without array operations for better performance
+    // Ultra-fast query for large ranges - optimized aggregation with fast MODE
+    // Single scan with efficient MODE calculation using DISTINCT ON
     const query = `
+      WITH aggregated AS (
+        SELECT
+          to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+          AVG(hr) as trimmed_hr,
+          AVG(rr) as trimmed_rr,
+          AVG(fft) as fft_value,
+          COUNT(*) as sample_count
+        FROM
+          readings_vital
+        WHERE
+          ts >= NOW() - $1::interval
+          AND hr IS NOT NULL
+          AND rr IS NOT NULL
+        GROUP BY
+          time_bucket
+      ),
+      bed_status_agg AS (
+        SELECT DISTINCT ON (time_bucket)
+          to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+          bed_status as most_common_bed_status
+        FROM
+          readings_vital
+        WHERE
+          ts >= NOW() - $1::interval
+          AND bed_status IS NOT NULL
+        GROUP BY
+          time_bucket, bed_status
+        ORDER BY
+          time_bucket, COUNT(*) DESC, bed_status
+      )
       SELECT
-        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
-        AVG(hr) as trimmed_hr,
-        AVG(rr) as trimmed_rr,
-        AVG(fft) as fft_value,
-        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
-        COUNT(*) as sample_count
+        a.time_bucket,
+        a.trimmed_hr,
+        a.trimmed_rr,
+        a.fft_value,
+        COALESCE(b.most_common_bed_status, 0) as most_common_bed_status,
+        a.sample_count
       FROM
-        readings_vital
-      WHERE
-        ts >= NOW() - $1::interval
-        AND hr IS NOT NULL
-        AND rr IS NOT NULL
-      GROUP BY
-        time_bucket
+        aggregated a
+      LEFT JOIN
+        bed_status_agg b ON a.time_bucket = b.time_bucket
       ORDER BY
-        time_bucket;
+        a.time_bucket;
     `;
     return pool.query(query, [interval, bucketSeconds]);
   }
 
-  // Original detailed query for smaller ranges
+  // Optimized query for smaller ranges - preserves trimmed mean logic with faster MODE
   const query = `
     WITH time_buckets AS (
       SELECT
@@ -99,40 +127,55 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
         array_agg(hr ORDER BY hr) AS hr_values,
         array_agg(rr ORDER BY rr) AS rr_values,
         array_agg(fft) AS fft_values,
-        MODE() WITHIN GROUP (ORDER BY bed_status) AS most_common_bed_status,
         COUNT(*) as sample_count
       FROM
         time_buckets
       GROUP BY
         time_bucket
+    ),
+    bed_status_mode AS (
+      SELECT DISTINCT ON (time_bucket)
+        to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
+        bed_status as most_common_bed_status
+      FROM
+        readings_vital
+      WHERE
+        ts >= NOW() - $1::interval
+        AND bed_status IS NOT NULL
+      GROUP BY
+        time_bucket, bed_status
+      ORDER BY
+        time_bucket, COUNT(*) DESC, bed_status
     )
     SELECT
-      time_bucket,
-      sample_count,
+      ba.time_bucket,
+      ba.sample_count,
       CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(hr_values))
+        WHEN ba.sample_count < 3 THEN 
+          (SELECT AVG(unnest) FROM unnest(ba.hr_values))
         ELSE 
-          (SELECT AVG(val) FROM unnest(hr_values[
-            GREATEST(1, ceil(array_length(hr_values, 1) * ${trimPercent})):
-            LEAST(array_length(hr_values, 1), array_length(hr_values, 1) - floor(array_length(hr_values, 1) * ${trimPercent}))
+          (SELECT AVG(val) FROM unnest(ba.hr_values[
+            GREATEST(1, ceil(array_length(ba.hr_values, 1) * ${trimPercent})):
+            LEAST(array_length(ba.hr_values, 1), array_length(ba.hr_values, 1) - floor(array_length(ba.hr_values, 1) * ${trimPercent}))
           ]) AS val)
       END AS trimmed_hr,
       CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(rr_values))
+        WHEN ba.sample_count < 3 THEN 
+          (SELECT AVG(unnest) FROM unnest(ba.rr_values))
         ELSE 
-          (SELECT AVG(val) FROM unnest(rr_values[
-            GREATEST(1, ceil(array_length(rr_values, 1) * ${trimPercent})):
-            LEAST(array_length(rr_values, 1), array_length(rr_values, 1) - floor(array_length(rr_values, 1) * ${trimPercent}))
+          (SELECT AVG(val) FROM unnest(ba.rr_values[
+            GREATEST(1, ceil(array_length(ba.rr_values, 1) * ${trimPercent})):
+            LEAST(array_length(ba.rr_values, 1), array_length(ba.rr_values, 1) - floor(array_length(ba.rr_values, 1) * ${trimPercent}))
           ]) AS val)
       END AS trimmed_rr,
-      (fft_values[1]) AS fft_value,
-      most_common_bed_status
+      (ba.fft_values[1]) AS fft_value,
+      COALESCE(bsm.most_common_bed_status, 0) as most_common_bed_status
     FROM
-      bucket_aggregates
+      bucket_aggregates ba
+    LEFT JOIN
+      bed_status_mode bsm ON ba.time_bucket = bsm.time_bucket
     ORDER BY
-      time_bucket;
+      ba.time_bucket;
   `;
 
   return pool.query(query, [interval, bucketSeconds]);
@@ -143,7 +186,7 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
   const isLargeRange = interval === '30 days' || interval === '1 year';
 
   if (isLargeRange) {
-    // Simplified query without array operations for better performance
+    // Optimized query leveraging existing composite index - direct aggregation
     const query = `
       SELECT
         to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
@@ -208,7 +251,7 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
   const isLargeRange = interval === '30 days' || interval === '1 year';
 
   if (isLargeRange) {
-    // Simplified query without array operations for better performance
+    // Optimized query leveraging existing composite index - direct aggregation
     const query = `
       SELECT
         to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,

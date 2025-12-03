@@ -15,7 +15,7 @@ import { cache } from "../utils/cache.js";
 
 const trimPercent = 0.1;
 
-// Cache TTLs based on range
+// Cache TTLs based on range - increased for year/month to reduce DB load
 const getCacheTTL = (range) => {
   switch (range) {
     case 'last_minute':
@@ -26,8 +26,9 @@ const getCacheTTL = (range) => {
     case 'last_week':
       return 120000; // 2 minutes
     case 'last_month':
+      return 1800000; // 30 minutes - data changes slowly for month view
     case 'last_year':
-      return 300000; // 5 minutes
+      return 3600000; // 60 minutes - data changes very slowly for year view
     default:
       return 60000; // 1 minute default
   }

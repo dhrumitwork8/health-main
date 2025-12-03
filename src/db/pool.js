@@ -22,10 +22,12 @@ export const pool = new Pool({
   ssl: {
     rejectUnauthorized: false,
   },
-  // Add connection timeout
+  // Connection settings
   connectionTimeoutMillis: 10000,
-  // Add idle timeout
   idleTimeoutMillis: 30000,
+  // Performance optimizations for large queries
+  max: 20, // Maximum pool size for concurrent queries
+  min: 2, // Minimum pool size to keep connections ready
 });
 
 // Test database connection on startup
