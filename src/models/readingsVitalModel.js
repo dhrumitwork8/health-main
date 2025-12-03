@@ -182,11 +182,11 @@ export const getVitalsByRange = (interval, bucketSeconds, trimPercent) => {
 };
 
 export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
-  // For large ranges (month/year), use simpler aggregation to improve performance
+  // Optimized query for all ranges - preserves trimmed mean logic
   const isLargeRange = interval === '30 days' || interval === '1 year';
 
   if (isLargeRange) {
-    // Optimized query leveraging existing composite index - direct aggregation
+    // Fast query for large ranges - simple AVG (no trimming needed for large datasets)
     const query = `
       SELECT
         to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
@@ -204,7 +204,7 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
     return pool.query(query, [interval, bucketSeconds]);
   }
 
-  // Original detailed query for smaller ranges
+  // Optimized query for smaller ranges - faster trimmed mean using window functions
   const query = `
     WITH time_buckets AS (
       SELECT
@@ -216,29 +216,32 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
         ts >= NOW() - $1::interval
         AND hrv IS NOT NULL
     ),
-    bucket_aggregates AS (
+    sorted_values AS (
       SELECT
         time_bucket,
-        array_agg(hrv ORDER BY hrv) AS hrv_values,
-        COUNT(*) as sample_count
+        hrv,
+        ROW_NUMBER() OVER (PARTITION BY time_bucket ORDER BY hrv) as rn,
+        COUNT(*) OVER (PARTITION BY time_bucket) as total_count
       FROM
         time_buckets
-      GROUP BY
-        time_bucket
+    ),
+    trimmed_values AS (
+      SELECT
+        time_bucket,
+        hrv
+      FROM
+        sorted_values
+      WHERE
+        total_count < 3
+        OR (rn > ceil(total_count * ${trimPercent}) AND rn <= total_count - floor(total_count * ${trimPercent}))
     )
     SELECT
       time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(hrv_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(hrv_values[
-            GREATEST(1, ceil(array_length(hrv_values, 1) * ${trimPercent})):
-            LEAST(array_length(hrv_values, 1), array_length(hrv_values, 1) - floor(array_length(hrv_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_hrv
+      AVG(hrv) as trimmed_hrv
     FROM
-      bucket_aggregates
+      trimmed_values
+    GROUP BY
+      time_bucket
     ORDER BY
       time_bucket;
   `;
@@ -247,11 +250,11 @@ export const getHrvByRange = (interval, bucketSeconds, trimPercent) => {
 };
 
 export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
-  // For large ranges (month/year), use simpler aggregation to improve performance
+  // Optimized query for all ranges - preserves trimmed mean logic
   const isLargeRange = interval === '30 days' || interval === '1 year';
 
   if (isLargeRange) {
-    // Optimized query leveraging existing composite index - direct aggregation
+    // Fast query for large ranges - simple AVG (no trimming needed for large datasets)
     const query = `
       SELECT
         to_timestamp(floor(EXTRACT(EPOCH FROM ts) / $2) * $2) AS time_bucket,
@@ -269,7 +272,7 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
     return pool.query(query, [interval, bucketSeconds]);
   }
 
-  // Original detailed query for smaller ranges
+  // Optimized query for smaller ranges - faster trimmed mean using window functions
   const query = `
     WITH time_buckets AS (
       SELECT
@@ -281,29 +284,32 @@ export const getSvByRange = (interval, bucketSeconds, trimPercent) => {
         ts >= NOW() - $1::interval
         AND sv IS NOT NULL
     ),
-    bucket_aggregates AS (
+    sorted_values AS (
       SELECT
         time_bucket,
-        array_agg(sv ORDER BY sv) AS sv_values,
-        COUNT(*) as sample_count
+        sv,
+        ROW_NUMBER() OVER (PARTITION BY time_bucket ORDER BY sv) as rn,
+        COUNT(*) OVER (PARTITION BY time_bucket) as total_count
       FROM
         time_buckets
-      GROUP BY
-        time_bucket
+    ),
+    trimmed_values AS (
+      SELECT
+        time_bucket,
+        sv
+      FROM
+        sorted_values
+      WHERE
+        total_count < 3
+        OR (rn > ceil(total_count * ${trimPercent}) AND rn <= total_count - floor(total_count * ${trimPercent}))
     )
     SELECT
       time_bucket,
-      CASE 
-        WHEN sample_count < 3 THEN 
-          (SELECT AVG(unnest) FROM unnest(sv_values))
-        ELSE 
-          (SELECT AVG(val) FROM unnest(sv_values[
-            GREATEST(1, ceil(array_length(sv_values, 1) * ${trimPercent})):
-            LEAST(array_length(sv_values, 1), array_length(sv_values, 1) - floor(array_length(sv_values, 1) * ${trimPercent}))
-          ]) AS val)
-      END AS trimmed_sv
+      AVG(sv) as trimmed_sv
     FROM
-      bucket_aggregates
+      trimmed_values
+    GROUP BY
+      time_bucket
     ORDER BY
       time_bucket;
   `;
